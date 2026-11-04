@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Offline Socket-Free Unit Test Suite for ISP Portal Healer (v1.0.0)
+Offline Socket-Free Unit Test Suite for 5G Home Internet Portal Healer (v1.1.0)
 """
 
 import unittest
@@ -8,12 +8,13 @@ from typing import List, Tuple
 
 from portal_healer import (
     CaptivePortalHealer,
+    NetworkAdapterInfo,
     PROBE_CLEAR,
     PROBE_INTERCEPTED,
     PROBE_UNKNOWN,
     VerizonAskeyDriver,
     XfinityGatewayDriver,
-    TMobileTMIDriver,
+    render_portal_healer_ui_html,
 )
 
 
@@ -67,7 +68,6 @@ class TestISPPortalHealer(unittest.TestCase):
         self.assertEqual(diag.intercept_type, "verizon_walled_garden")
         self.assertEqual(actions, [])
         self.assertEqual(diag.heal_action_taken, "none")
-        # Sensitive query string redacted by default
         pub = diag.public_dict(include_sensitive=False)
         self.assertEqual(pub["redirect_url"], "https://ondevice.verizon.com/w")
 
@@ -93,7 +93,7 @@ class TestISPPortalHealer(unittest.TestCase):
         self.assertTrue(diag.verified_recovered)
         self.assertFalse(diag.intercepted)
 
-    def test_4_xfinity_driver_capabilities_and_unknown_probe_guard(self) -> None:
+    def test_4_xfinity_driver_and_interactive_ui_render(self) -> None:
         actions: List[str] = []
         drv = FakeDriver(
             XfinityGatewayDriver.CAPABILITIES,
@@ -103,8 +103,14 @@ class TestISPPortalHealer(unittest.TestCase):
         healer = CaptivePortalHealer()
         healer.probe_portal = lambda: (PROBE_UNKNOWN, "none", "")  # type: ignore
         diag = healer.diagnose_and_fix(drv, heal=False)
-        # Even if DOCSIS is Operational, an unknown HTTP probe must not set verified_recovered
         self.assertFalse(diag.verified_recovered)
+
+        adapters = [
+            NetworkAdapterInfo("Wi-Fi", "Killer Wi-Fi 7", "connected", "Verizon_Home_5G", "192.168.1.153", "192.168.1.1", "verizon")
+        ]
+        html = render_portal_healer_ui_html(adapters, diag)
+        self.assertIn('<meta name="color-scheme" content="light dark">', html)
+        self.assertIn("1-Click Fix Walled Garden", html)
 
 
 if __name__ == "__main__":
