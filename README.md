@@ -1,6 +1,6 @@
-# ISP Portal Healer (`isp-portal-healer`)
+# 5G Home Internet Portal Healer (`5g-home-portal-healer`)
 
-**Detect and fix stuck ISP "Walled Garden" captive portals, false "No Internet" red LEDs, and stale WAN leases across Verizon 5G Home, Xfinity Home Internet (`10.0.0.1` / `xfinitywifi`), and T-Mobile 5G Home.**
+**Detect and fix stuck 5G Home Internet & Wi-Fi "Walled Garden" captive portals, false "No Internet" red LEDs, and stale WAN leases across Verizon 5G Home, T-Mobile 5G Home, and Xfinity Home Internet (`10.0.0.1` / `xfinitywifi`).**
 
 ---
 

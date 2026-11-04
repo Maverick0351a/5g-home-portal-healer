@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-ISP Portal Healer (isp-portal-healer v1.0.0)
-============================================
+5G Home Internet Portal Healer (5g-home-portal-healer v1.0.0)
+=============================================================
 Standalone, user-friendly CLI and background watchdog that detects and fixes
-stuck ISP "Walled Garden" captive portals, false "No Internet" red LED states,
-and stale provisioning locks across:
+stuck 5G Home Internet & Wi-Fi "Walled Garden" captive portals, false "No Internet"
+red LED states, and stale provisioning locks across:
   - Verizon 5G Home Internet (Askey ASK-NCM1100 / WNC gateways at 192.168.1.1)
-  - Xfinity Home Internet & xfinitywifi (RDK-B XB6/XB7/XB8 gateways at 10.0.0.1)
   - T-Mobile 5G Home Internet (TMI gateways at 192.168.12.1)
+  - Xfinity Home Internet & xfinitywifi (RDK-B XB6/XB7/XB8 gateways at 10.0.0.1)
 
 Zero external Python dependencies. Safe read-only `check` mode by default.
 """
