@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-5G Home Internet Portal Healer (5g-home-portal-healer v1.1.0)
+5G Home Internet Portal Healer (5g-home-portal-healer v1.2.1)
 =============================================================
 The 1-Click "Blinking Red Light & Walled Garden" Unbricker for:
   - Verizon 5G Home Internet (Askey ASK-NCM1100 / WNC gateways at 192.168.1.1)
@@ -595,9 +595,23 @@ class CaptivePortalHealer:
         driver: Any,
         heal: bool = False,
         verizon_mtn: Optional[str] = None,
+        carrier_cases: Optional[List[Dict[str, Any]]] = None,
+        verify_retries: int = 3,
+        verify_delay_sec: float = 0.0,
     ) -> PortalDiagnosis:
         caps: ProviderCapabilities = driver.CAPABILITIES
         diag = PortalDiagnosis(provider=caps.provider, gateway_host=driver.host)
+
+        if carrier_cases:
+            diag.pending_carrier_cases = [
+                {
+                    "caseStatus": str(c.get("caseStatus", "")),
+                    "orderType": str(c.get("orderType", "")),
+                    "mtn": str(verizon_mtn or c.get("mtn", "")),
+                }
+                for c in carrier_cases
+                if self.is_verizon_case_pending(c)
+            ]
 
         try:
             model, fw, status_txt, link_ok, wan_ok = driver.inspect_gateway()
@@ -635,13 +649,25 @@ class CaptivePortalHealer:
             diag.heal_action_taken = "+".join(actions) if actions else "none"
 
             if diag.heal_action_taken != "none":
-                post_status, post_type, post_url = self.probe_portal()
-                diag.probe_status = post_status
-                diag.intercepted = (post_status == PROBE_INTERCEPTED)
-                diag.intercept_type = post_type
-                diag.redirect_url = post_url
-                if post_status == PROBE_CLEAR:
-                    diag.wan_internet_ok = True
+                attempts = max(1, verify_retries)
+                for attempt in range(attempts):
+                    if verify_delay_sec > 0 and attempt > 0:
+                        time.sleep(verify_delay_sec)
+                    post_status, post_type, post_url = self.probe_portal()
+                    diag.probe_status = post_status
+                    diag.intercepted = (post_status == PROBE_INTERCEPTED)
+                    diag.intercept_type = post_type
+                    diag.redirect_url = post_url
+                    if post_status == PROBE_CLEAR:
+                        diag.wan_internet_ok = True
+                        if "walled garden" in diag.led_or_wan_status.lower():
+                            try:
+                                _, _, status_txt, link_ok, _ = driver.inspect_gateway()
+                                diag.led_or_wan_status = status_txt
+                                diag.radio_or_docsis_online = link_ok
+                            except Exception:
+                                pass
+                        break
 
         diag.verified_recovered = (
             diag.probe_status == PROBE_CLEAR
@@ -760,9 +786,20 @@ def render_portal_healer_ui_html(
     .card {{ background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }}
     .lbl {{ font-size: 0.75rem; text-transform: uppercase; color: var(--muted); }}
     .val {{ font-size: 1.25rem; font-weight: 700; margin-top: 6px; }}
-    .table-wrap {{ container-type: inline-size; overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; }}
-    table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }}
+    .table-wrap {{ container-type: inline-size; overflow: auto; max-inline-size: 100%; max-block-size: min(500px, 80vh); background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; }}
+    table {{ width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 0.9rem; --label-2: "Wi-Fi SSID"; --label-3: "Local IPv4"; --label-4: "Gateway & Provider"; }}
+    thead {{ position: sticky; inset-block-start: 0; z-index: 1; background: var(--card); }}
+    tbody th {{ position: sticky; inset-inline-start: 0; background: var(--card); }}
     th, td {{ padding: 12px 16px; border-bottom: 1px solid var(--border); }}
+    @container (width < 600px) {{
+      table, thead, tbody, tr, th, td {{ display: block; }}
+      thead {{ display: none; }}
+      tr {{ margin-block-end: 1rem; border: 1px solid var(--border); }}
+      tbody th {{ position: sticky; inset-block-start: 0; z-index: 2; background: var(--card); }}
+      td:nth-child(2)::before {{ content: var(--label-2) ": "; font-weight: 600; }}
+      td:nth-child(3)::before {{ content: var(--label-3) ": "; font-weight: 600; }}
+      td:nth-child(4)::before {{ content: var(--label-4) ": "; font-weight: 600; }}
+    }}
     pre, code {{ color-scheme: dark; accent-color: var(--accent-color); font-family: ui-monospace, monospace; }}
   </style>
 </head>
@@ -822,17 +859,18 @@ def detect_provider(host: Optional[str] = None, opener: Optional[urllib.request.
         for a in adapters:
             if a.inferred_provider in ("verizon", "xfinity", "tmobile") and not a.ipv4_address.startswith("169.254."):
                 return a.inferred_provider
-    op = opener or build_opener()
+    op = opener or build_opener(verify_tls=False)
     candidates = [host] if host else ["192.168.1.1", "10.0.0.1", "192.168.12.1"]
     for h in candidates:
         if not h:
             continue
-        try:
-            with op.open(f"http://{h}/loginStatus.cgi", timeout=3) as r:
-                if b"token" in r.read():
-                    return "verizon"
-        except Exception:
-            pass
+        for scheme in ("https", "http"):
+            try:
+                with op.open(f"{scheme}://{h}/loginStatus.cgi", timeout=3) as r:
+                    if b"token" in r.read():
+                        return "verizon"
+            except Exception:
+                pass
         try:
             with op.open(f"http://{h}/check.jst", timeout=3) as r:
                 if r.getcode() in (200, 302):
@@ -905,11 +943,12 @@ def main() -> None:
     healer = CaptivePortalHealer(source_ip=src_ip)
 
     if args.command in ("check", "fix"):
-        diag = healer.diagnose_and_fix(drv, heal=(args.command == "fix"))
+        is_fix = args.command == "fix"
+        diag = healer.diagnose_and_fix(drv, heal=is_fix, verify_delay_sec=1.5 if is_fix else 0.0)
         print(json.dumps(diag.public_dict(include_sensitive=args.include_sensitive), indent=2))
     elif args.command == "watch":
         while True:
-            diag = healer.diagnose_and_fix(drv, heal=True)
+            diag = healer.diagnose_and_fix(drv, heal=True, verify_delay_sec=1.5)
             print(json.dumps(diag.public_dict(include_sensitive=args.include_sensitive)), flush=True)
             time.sleep(args.interval)
     elif args.command == "ui":
@@ -937,7 +976,7 @@ def main() -> None:
 
             def do_POST(self) -> None:
                 if self.path == "/api/fix":
-                    cur_diag = healer.diagnose_and_fix(drv, heal=True)
+                    cur_diag = healer.diagnose_and_fix(drv, heal=True, verify_delay_sec=1.5)
                     body = json.dumps(cur_diag.public_dict(include_sensitive=False), indent=2).encode("utf-8")
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Offline Socket-Free Unit Test Suite for 5G Home Internet Portal Healer (v1.1.0)
+Offline Socket-Free Unit Test Suite for 5G Home Internet Portal Healer (v1.2.1)
 """
 
 import unittest
@@ -111,6 +111,41 @@ class TestISPPortalHealer(unittest.TestCase):
         html = render_portal_healer_ui_html(adapters, diag)
         self.assertIn('<meta name="color-scheme" content="light dark">', html)
         self.assertIn("1-Click Fix Walled Garden", html)
+
+    def test_5_post_heal_retry_polling_and_carrier_cases(self) -> None:
+        actions: List[str] = []
+        drv = FakeDriver(
+            VerizonAskeyDriver.CAPABILITIES,
+            ("ASK-NCM1100", "3.6.0.5", "Normal operation", True, False),
+            actions,
+        )
+        healer = CaptivePortalHealer()
+        calls = [0]
+
+        def delayed_recovery_probe():
+            calls[0] += 1
+            # Initial check (1) + first post-heal check (2) still intercepted; second post-heal retry (3) clears
+            if calls[0] <= 2:
+                return PROBE_INTERCEPTED, "verizon_walled_garden", "https://ondevice.verizon.com/w"
+            return PROBE_CLEAR, "none", ""
+
+        healer.probe_portal = delayed_recovery_probe  # type: ignore
+        cases = [
+            {"caseStatus": "Pending-RTREnablement", "orderType": "Modify"},
+            {"caseStatus": "Closed", "orderType": "New"},
+        ]
+        diag = healer.diagnose_and_fix(
+            drv,
+            heal=True,
+            verizon_mtn="5550199",
+            carrier_cases=cases,
+            verify_retries=3,
+            verify_delay_sec=0.0,
+        )
+        self.assertEqual(calls[0], 3)
+        self.assertTrue(diag.verified_recovered)
+        self.assertEqual(len(diag.pending_carrier_cases), 1)
+        self.assertEqual(diag.pending_carrier_cases[0]["caseStatus"], "Pending-RTREnablement")
 
 
 if __name__ == "__main__":
