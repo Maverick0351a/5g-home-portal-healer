@@ -1,39 +1,33 @@
-# 5G Home Internet Portal Healer (`5g-home-portal-healer`)
+# 5G Home Internet & Xfinity WiFi Captive Portal Auto-Healer (`5g-home-portal-healer`)
 
-**The 1-Click "Blinking Red Light & Walled Garden" Unbricker for Verizon 5G Home (`192.168.1.1`), T-Mobile 5G Home (`192.168.12.1`), and Xfinity Home Internet (`10.0.0.1` / `xfinitywifi`).**
+[![CI & Windows EXE Release](https://github.com/Maverick0351a/5g-home-portal-healer/actions/workflows/ci-and-release.yml/badge.svg)](https://github.com/Maverick0351a/5g-home-portal-healer/actions/workflows/ci-and-release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/Maverick0351a/5g-home-portal-healer?label=Windows%20EXE)](https://github.com/Maverick0351a/5g-home-portal-healer/releases/latest)
 
----
-
-## Why This Stands Out
-Home 5G cubes and cable gateways frequently get stuck in a **"healthy signal, no internet"** loop where:
-- **Verizon 5G Home (`192.168.1.1`)** shows a blinking red/white LED (`Walled garden active`) or redirects web traffic to `ondevice.verizon.com` even when your bill is paid and 5G signal is strong.
-- **Xfinity Home Internet (`10.0.0.1` XB6/XB7/XB8 & `xfinitywifi`)** locks into `register.be.xfinity.com` or `captiveportal.xfinity.com` after a modem firmware update or provisioning hiccup.
-- **T-Mobile 5G Home (`192.168.12.1`)** stays registered to the cell tower (`RSRP` present) while upstream WAN routing drops.
-
-`5g-home-portal-healer` includes **Zero-Config Multi-Wi-Fi Auto-Discovery** and a **1-Click Local Web Control Center** (`http://127.0.0.1:8890/`) that detects your connected router and clears stuck Walled Gardens without wiping your Wi-Fi settings.
+Automatically detect and recover from silent **Verizon 5G Home Internet** (`192.168.1.1`), **T-Mobile 5G Home Internet** (`192.168.12.1`), and **Xfinity Home Internet / `xfinitywifi`** (`10.0.0.1`) captive-portal hijacks, OMA-DM firmware stalls, and frozen cellular WAN leases without manual router reboots.
 
 ---
 
 ## Quick Start
 
-```bash
-# 1. Launch the Interactive Web Control Center at http://127.0.0.1:8890/
-python portal_healer.py ui --password "<YOUR_ROUTER_PASSWORD>"
-
-# 2. See all auto-discovered Wi-Fi & LAN adapters (SSID, Local IP, Gateway, Provider)
-python portal_healer.py adapters
-
-# 3. Read-only check (auto-detects Verizon 192.168.1.1, Xfinity 10.0.0.1, or T-Mobile 192.168.12.1)
-python portal_healer.py check --password "<YOUR_ROUTER_PASSWORD>"
-
-# 4. Automatically fix a stuck Walled Garden or stale WAN session
-python portal_healer.py fix --password "<YOUR_ROUTER_PASSWORD>"
+### Option A: Standalone Windows `.exe`
+Download `5g-home-portal-healer.exe` from [**Releases**](https://github.com/Maverick0351a/5g-home-portal-healer/releases/latest):
+```powershell
+.\5g-home-portal-healer.exe ui --port 8890
 ```
 
----
+### Option B: Python CLI & Web Dashboard (Zero External Dependencies)
+```powershell
+# 1. Launch Interactive Web Healer Dashboard (http://127.0.0.1:8890/)
+python portal_healer.py ui --port 8890
 
-## Running Offline Tests
+# 2. Run a live captive-portal & gateway check
+python portal_healer.py check --provider auto
 
-```bash
+# 3. Run continuous background auto-healing daemon
+python portal_healer.py watch --provider auto --interval 30
+```
+
+## Run Offline Unit Tests
+```powershell
 python test_portal_healer.py
 ```

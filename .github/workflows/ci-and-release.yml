@@ -1,0 +1,52 @@
+name: CI & Windows Standalone EXE Release
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unit-tests:
+    name: Run Offline Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run Unit Test Suite
+        run: python test_portal_healer.py
+
+  build-windows-exe:
+    name: Build Standalone Windows EXE
+    needs: unit-tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+      - name: Build Single-File Windows Executable (5g-home-portal-healer.exe)
+        run: pyinstaller --onefile --name 5g-home-portal-healer portal_healer.py
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: 5g-home-portal-healer-windows-exe
+          path: dist/5g-home-portal-healer.exe
+      - name: Publish GitHub Release (on Tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/5g-home-portal-healer.exe
+          generate_release_notes: true
